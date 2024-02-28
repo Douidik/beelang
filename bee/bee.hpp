@@ -51,29 +51,40 @@ Defer_Scope<F> defer_scope_new(F function)
 void bee_panic(const char *what, const char *file, const char *function, int line, const char *code,
                const char *fmt = "", auto... args)
 {
-    fprintf(stderr, "%s! (%s:%s):\n %d\t| %s [", what, file, function, line, code);
+    fprintf(stderr, "%s! (%s:%s):\n %d |\t%s [", what, file, function, line, code);
     fprintf(stderr, fmt, args...);
     fprintf(stderr, "]\n");
     abort();
 }
 
 #ifdef Bee_Debug
-#define _Assert_Error(Error, ...) Error
-#define _Assert_Fmt(Error, ...) #Error __VA_OPT__(, ) __VA_ARGS__
-#define Assert(...)                                 \
-    [[unlikely]] if (!(_Assert_Error(__VA_ARGS__))) \
-    bee_panic("assertion failed", __FILE__, __func__, __LINE__, _Assert_Fmt(__VA_ARGS__))
+#define _Va_Error(Error, ...) Error
+#define _Va_Fmt(Error, ...) #Error __VA_OPT__(, ) __VA_ARGS__
+#define Assert(...)                             \
+    [[unlikely]] if (!(_Va_Error(__VA_ARGS__))) \
+    bee_panic("assertion failed", __FILE__, __func__, __LINE__, _Va_Fmt(__VA_ARGS__))
+
+#define Todo(...) bee_panic("todo", __FILE__, __func__, __LINE__, __VA_ARGS__)
+#define Panic(...) bee_panic("error", __FILE__, __func__, __LINE__, "", __VA_ARGS__)
 
 #else
-#define Assert(Boolean, ...) \
-    do {                     \
+#define Assert(...) \
+    do {            \
     } while (0)
+
+#define Todo(...) \
+    do {          \
+    } while (0)
+
 #endif
 
 #define Abs(X) (X > 0 ? +X : -X)
 #define Min(X, Y) (X < Y ? X : Y)
 #define Max(X, Y) (X > Y ? X : Y)
 #define Array_Size(Array) (sizeof(Array) / sizeof(Array[0]))
+
+template <typename T>
+using Remove_Const = std::remove_const_t<T>;
 
 template <typename T>
 using Decay = std::decay_t<T>;
@@ -86,7 +97,7 @@ concept Same_As = std::same_as<X, Y>;
 
 template <typename T, typename... Ts>
 concept One_Of = (Same_As<T, Ts> || ...);
-    
+
 } // namespace bee
 
 #endif

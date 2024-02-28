@@ -7,9 +7,123 @@
 namespace bee
 {
 
-#define Array_Grow(X) (X > 0 ? X * 2 : 1)
+template <typename T, size_t N>
+struct Arena
+{
+    T data[N];
+    size_t len;
+
+    T *begin()
+    {
+        return &data[0];
+    };
+    T *end()
+    {
+        return &data[N];
+    };
+
+    const T *begin() const
+    {
+        return &data[0];
+    };
+    const T *end() const
+    {
+        return &data[N];
+    };
+
+    T pop()
+    {
+        Assert(len > 0, "cannot pop() arena is empty");
+        return data[--len];
+    }
+
+    T *push(T x)
+    {
+        Assert(len + 1 <= N, "cannot push() arena is full");
+        return &(data[len++] = x);
+    }
+
+    bool empty() const
+    {
+        return !len;
+    }
+
+#define Arena_Bounds_Check(index) \
+    Assert(index >= 0 and index < len, "arena index out of bounds (%zu with arena[%zu])", index, len);
+
+    T &operator[](size_t index)
+    {
+        Arena_Bounds_Check(index);
+        return data[index];
+    }
+
+    T *at(size_t index)
+    {
+        if (index >= len)
+            return NULL;
+        return &data[index];
+    }
+#undef Arena_Bounds_Check
+};
+
 template <typename T>
-struct Array
+struct View
+{
+    T *data;
+    size_t len;
+
+    typedef T *iterator;
+
+    T *begin() const
+    {
+        Assert(data != NULL, "view data is uninitialized");
+        return &data[0];
+    }
+    T *end() const
+    {
+        Assert(data != NULL, "view data is uninitialized");
+        return &data[len];
+    }
+
+    T &front() const
+    {
+        Assert(data != NULL, "view data is uninitialized");
+        Assert(len != 0, "view is empty");
+        return data[0];
+    }
+    T &back() const
+    {
+        Assert(data != NULL, "view data is uninitialized");
+        Assert(len != 0, "view is empty");
+        return data[len - 1];
+    }
+
+#define View_Bounds_Check(index) \
+    Assert(index < len, "view index out of bounds (%zu with view[%zu])", index, len);
+
+    T &operator[](size_t index) const
+    {
+        View_Bounds_Check(index);
+        return data[index];
+    }
+
+    T *at(size_t index) const
+    {
+        if (index >= len)
+            return NULL;
+        return &data[index];
+    }
+#undef View_Bounds_Check
+
+    View() : data(NULL), len(0) {}
+    View(T *data, size_t len) : data(data), len(len) {}
+    View(const char *s) : data(s), len(strlen(s)) {}
+    View(T *begin, T *end) : data(begin), len(end - begin) {}
+};
+
+#define Vec_Grow(X) (X > 0 ? X * 2 : 1)
+template <typename T>
+struct Vec
 {
     T *data;
     size_t len;
@@ -23,7 +137,8 @@ struct Array
             return;
         T *new_data = new T[new_cap];
         if (data != NULL and len > 0)
-            memmove(new_data, data, len);
+            memcpy(new_data, data, len * sizeof(T));
+        delete[] data;
         data = new_data, cap = new_cap;
     }
 
@@ -36,31 +151,31 @@ struct Array
 
     void deinit()
     {
-        Assert(data != NULL, "array data is uninitialized");
+        Assert(data != NULL, "vec data is uninitialized");
         delete[] data;
     }
 
-    T *begin()
+    T *begin() const
     {
-        Assert(data != NULL, "array data is uninitialized");
+        Assert(data != NULL, "vec data is uninitialized");
         return &data[0];
     }
-    T *end()
+    T *end() const
     {
-        Assert(data != NULL, "array data is uninitialized");
-        return &data[0];
+        Assert(data != NULL, "vec data is uninitialized");
+        return &data[len];
     }
 
-    T &front()
+    T &front() const
     {
-        Assert(data != NULL, "array data is uninitialized");
-        Assert(len != 0, "array is empty");
+        Assert(data != NULL, "vec data is uninitialized");
+        Assert(len != 0, "vec is empty");
         return data[0];
     }
-    T &back()
+    T &back() const
     {
-        Assert(data != NULL, "array data is uninitialized");
-        Assert(len != 0, "array is empty");
+        Assert(data != NULL, "vec data is uninitialized");
+        Assert(len != 0, "vec is empty");
         return data[len - 1];
     }
 
@@ -71,59 +186,56 @@ struct Array
 
     T &push(T x)
     {
-        if (len + 1 >= cap)
-            reserve(Array_Grow(cap + 1));
+        if (len + 1 > cap)
+            reserve(Vec_Grow(cap + 1));
         return (data[len++] = x);
     }
     T &pop(T element)
     {
-        Assert(len != 0, "array is empty");
+        Assert(len != 0, "vec is empty");
         return data[--len];
+    }
+
+    View<T> as_view() const
+    {
+        return View<T>{data, len};
     }
 
     void concat(const T *concat_begin, const T *concat_end)
     {
         size_t concat_len = (concat_end - concat_begin);
-        if (concat_len >= cap) {
-            reserve(Array_Grow(cap + 1));
+        if (len + concat_len >= cap) {
+            reserve(Vec_Grow(cap + concat_len));
         }
-        memmove(&data[len], concat_begin, concat_len);
+        memcpy(&data[len], concat_begin, concat_len);
         len += concat_len;
     }
 
-#define Array_Bounds_Check(index) \
-    Assert(index < len, "array index out of bounds (%zu with array[%zu])", index, len);
+#define Vec_Bounds_Check(index) \
+    Assert(index < len, "vec index out of bounds (%zu with vec[%zu])", index, len);
 
-    T &operator[](size_t index)
+    T &operator[](size_t index) const
     {
-        Array_Bounds_Check(index);
+        Vec_Bounds_Check(index);
         return data[index];
     }
 
-    T *at(size_t index)
+    T *at(size_t index) const
     {
         if (index >= len)
             return NULL;
         return &data[index];
     }
 
-#undef Array_Bounds_Check
+#undef Vec_Bounds_Check
 };
 
 template <typename T>
-Array<T> new_array(size_t init_cap = 0)
+Vec<T> new_vec(size_t init_cap = 0)
 {
-    Array<T> array = {};
-    array.reserve(init_cap);
-    return array;
-}
-
-template <typename T>
-Array<T> new_array_with(size_t init_cap = 0, T element = {})
-{
-    Array<T> array = {};
-    array.reserve_with(init_cap, element);
-    return array;
+    Vec<T> vec = {};
+    vec.reserve(init_cap);
+    return vec;
 }
 
 const size_t npos = (size_t)-1;
@@ -144,15 +256,6 @@ struct string
     {
         Assert(data != NULL, "string data is uninitialized");
         return &data[len];
-    }
-
-    const char *cbegin() const
-    {
-        return begin();
-    }
-    const char *cend() const
-    {
-        return end();
     }
 
     const char *find(char c) const
@@ -189,9 +292,18 @@ struct string
         return find(c) != end();
     }
 
+    bool has(string s) const
+    {
+        for (char c : s) {
+	    if (has(c))
+		return true;
+        }
+	return false;
+    }
+
     string begin_at(const char *s) const
     {
-        Assert(s < end(), "cannot start after end");
+        Assert(s <= end(), "cannot start after end");
         return string{s, end()};
     }
 
@@ -201,24 +313,23 @@ struct string
         return string{begin(), s};
     }
 
-    char *dup()
+    char *dup() const
     {
         char *buf = new char[len + 1];
         strncpy(buf, data, len);
         return buf;
     }
 
-    size_t count(char c)
+    size_t count(char c) const
     {
         size_t occurences = 0;
-        string sf = {begin(), end()};
-        for (; sf.data != end(); sf.data++, occurences++) {
-            sf.data = sf.find(c);
+        for (size_t i = 0; i < len; i++) {
+            occurences += data[i] == c;
         }
         return occurences;
     }
 
-    char *replace(string from, string into)
+    char *replace(string from, string into) const
     {
         char *buf = dup();
         string s(buf, len);
@@ -230,6 +341,21 @@ struct string
             }
         }
         return buf;
+    }
+
+    bool match(string s) const
+    {
+        return s.len != len ? false : !strncmp(s.data, data, s.len);
+    }
+
+    bool operator==(string s) const
+    {
+        return match(s);
+    }
+
+    bool operator!=(string s) const
+    {
+        return !match(s);
     }
 
 #define String_Bounds_Check(index) \
@@ -261,6 +387,8 @@ struct string
     string(const char *s, size_t len) : data(s), len(len) {}
     string(const char *s) : data(s), len(strlen(s)) {}
     string(const char *begin, const char *end) : data(begin), len(end - begin) {}
+    string(View<const char> view) : string(view.begin(), view.end()) {}
+
     operator const char *() const
     {
         return data;

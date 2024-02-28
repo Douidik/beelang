@@ -1,8 +1,12 @@
-#include <format.hpp>
+#include <bee.hpp>
+#include <regex.hpp>
+
+using namespace bee;
 
 int main(int argc, char *argv[])
 {
-    using namespace bee;
-    fmt::print("hello %(d:!#b16)\n", 64);
-    fmt::print("hello %x\n", 64);
+    auto regex = compile_regex("'abc'* 'def'?");
+    defer(regex.deinit());
+
+    fmt::print("%v\n", regex);
 }
