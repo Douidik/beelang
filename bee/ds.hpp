@@ -196,11 +196,6 @@ struct Vec
         return data[--len];
     }
 
-    View<T> as_view() const
-    {
-        return View<T>{data, len};
-    }
-
     void concat(const T *concat_begin, const T *concat_end)
     {
         size_t concat_len = (concat_end - concat_begin);
@@ -295,10 +290,10 @@ struct string
     bool has(string s) const
     {
         for (char c : s) {
-	    if (has(c))
-		return true;
+            if (has(c))
+                return true;
         }
-	return false;
+        return false;
     }
 
     string begin_at(const char *s) const
@@ -347,13 +342,19 @@ struct string
     {
         return s.len != len ? false : !strncmp(s.data, data, s.len);
     }
-
     bool operator==(string s) const
     {
         return match(s);
     }
-
     bool operator!=(string s) const
+    {
+        return !match(s);
+    }
+    bool operator==(const char *s) const
+    {
+        return match(s);
+    }
+    bool operator!=(const char *s) const
     {
         return !match(s);
     }
@@ -377,8 +378,9 @@ struct string
     string substr(size_t index, size_t range_len) const
     {
         String_Bounds_Check(index);
-        String_Bounds_Check(range_len > 0 ? index + range_len - 1 : index);
-        return string{&data[index], len};
+        Assert(&data[index + range_len] <= &data[len], "sub-string out of bounds (%zu with string[%zu])",
+               index + range_len, len);
+        return string{&data[index], range_len};
     }
 #undef String_Bounds_Check
 

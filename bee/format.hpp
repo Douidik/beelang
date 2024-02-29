@@ -427,7 +427,7 @@ void format(Context *context, Device *dev, Fmt_Int auto v)
 
     it += radix;
     for (int r = 0; r < radix; r++) {
-        it[-r - 1] = alphabet[v % context->base];
+        it[-r - 1] = alphabet[size_t(v % context->base)];
         v /= context->base;
     }
 

@@ -51,9 +51,13 @@ Defer_Scope<F> defer_scope_new(F function)
 void bee_panic(const char *what, const char *file, const char *function, int line, const char *code,
                const char *fmt = "", auto... args)
 {
-    fprintf(stderr, "%s! (%s:%s):\n %d |\t%s [", what, file, function, line, code);
-    fprintf(stderr, fmt, args...);
-    fprintf(stderr, "]\n");
+    fprintf(stderr, "%s! (%s:%s):\n %d |\t%s", what, file, function, line, code);
+    if (*fmt) {
+        fprintf(stderr, " [");
+        fprintf(stderr, fmt, args...);
+        fprintf(stderr, "]");
+    }
+    fprintf(stderr, "\n");
     abort();
 }
 

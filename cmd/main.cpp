@@ -5,7 +5,7 @@ using namespace bee;
 
 int main(int argc, char *argv[])
 {
-    auto regex = compile_regex("'abc'* 'def'?");
+    auto regex = compile_regex("{' '} ~ 'sus'");
     defer(regex.deinit());
 
     fmt::print("%v\n", regex);

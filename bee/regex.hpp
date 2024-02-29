@@ -69,7 +69,7 @@ struct Node
 
     void map_sequence_ids(u32 zero);
     Node_Set *make_members();
-    void on_edges_insertion();
+    void when_edges_are_modified();
 };
 
 struct Binary

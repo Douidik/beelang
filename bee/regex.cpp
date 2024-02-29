@@ -9,14 +9,15 @@ u64 State::submit(string expr, u64 n) const
         return npos;
 
     switch (option) {
+    case Regex_Monostate:
+    case Regex_None:
+        return npos;
+
     case Regex_Eps:
         return n;
 
     case Regex_Any:
         return n + 1;
-
-    case Regex_None:
-        return npos;
 
     case Regex_Not:
         return sequence->submit(expr, n) != npos ? npos : n + 1;
@@ -25,6 +26,8 @@ u64 State::submit(string expr, u64 n) const
         return sequence->submit(expr, n) != npos ? n : npos;
 
     case Regex_Str: {
+        if (expr.len < n + str.len)
+            return npos;
         string substr = expr.substr(n, str.len);
         return substr.match(str) ? n + str.len : npos;
     }
@@ -34,14 +37,18 @@ u64 State::submit(string expr, u64 n) const
 
     case Regex_Scope:
         return range[0] <= expr[n] and expr[n] <= range[1] ? n + 1 : npos;
-
-    default:
-        return npos;
     }
+
+    return npos;
 }
 
 Node_Set *node_set_insert(Node_Set *set, Node *node)
 {
+    for (auto it = set; it != NULL; it = it->next) {
+        if (it->node == node)
+            return set;
+    }
+
     if (!set) {
         set = new Node_Set{node, NULL};
     } else {
@@ -49,9 +56,6 @@ Node_Set *node_set_insert(Node_Set *set, Node *node)
         auto at = it;
 
         while (it != NULL and it->node->id < node->id) {
-            if (it->node == node) // Do not insert duplicates
-                return it;
-
             at = it;
             it = it->next;
         }
@@ -62,13 +66,14 @@ Node_Set *node_set_insert(Node_Set *set, Node *node)
     return set;
 }
 
-// todo! do not use recursion
-// cannot iterate because the '.next' depends on free value
 void node_set_deinit(Node_Set *set)
 {
-    if (set != NULL) {
-        node_set_deinit(set->next);
-        delete set;
+    Node_Set *previous;
+
+    while (set != NULL) {
+        previous = set;
+        set = set->next;
+        delete previous;
     }
 }
 
@@ -103,7 +108,8 @@ Node *Node::push(Node *node)
 {
     node->map_sequence_ids(end()->id + 1);
     edges = node_set_insert(edges, node);
-    on_edges_insertion();
+    when_edges_are_modified();
+
     return node;
 }
 
@@ -119,10 +125,10 @@ Node *Node::concat(Node *node)
 
     for (auto it = members; it != NULL; it = it->next) {
         if (!it->node->has_edges())
-            edges = node_set_insert(edges, node);
+            it->node->edges = node_set_insert(it->node->edges, node);
     }
 
-    on_edges_insertion();
+    when_edges_are_modified();
     return node;
 }
 
@@ -177,7 +183,7 @@ Node_Set *Node::make_members()
     return member_cache;
 }
 
-void Node::on_edges_insertion()
+void Node::when_edges_are_modified()
 {
     node_set_deinit(member_cache);
     member_cache = NULL;
@@ -445,8 +451,8 @@ Node *Parser::parse_wave()
     auto sequence = arena->push(Node{});
     auto none = arena->push(Node{});
     sequence->state.option = Regex_Eps;
-    sequence->push(a);
-    sequence->push(b)->concat(sequence);
+    sequence->push(b);
+    sequence->push(a)->concat(sequence);
     a->merge(none);
     none->state.option = Regex_None;
 
@@ -464,9 +470,9 @@ Match new_match(string expr, u64 index)
     const char *end = NULL;
 
     if (index != npos)
-        end = &expr[index];
+        end = &expr.data[index];
     else
-        end = &expr[0];
+        end = &expr.data[0];
 
     match.view = {expr.begin(), end};
     match.next = {end, expr.end()};
