@@ -146,6 +146,7 @@ enum Spec_State
 };
 
 const u32 Max_Escapes = 32;
+const u32 Max_Default_Prec = 4;
 
 struct Context
 {
@@ -160,9 +161,11 @@ struct Context
     char pad = ' ';
 
     // %(d, f)
+    u32 sign_mode = Sign_Negative;
+
+    // %(d)
     i32 base = 10;
     bool hash = false;
-    u32 sign_mode = Sign_Negative;
     bool base_upcase = false;
 
     // %(f)
@@ -381,18 +384,16 @@ const string Number_Alphabet[2] = {
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
 };
 
+char *write_itoa(char *it, string alphabet, i32 base, u64 x);
+
 void format(Context *context, Device *dev, Fmt_Int auto v)
 {
     expect_token(context, dev, *context->verb, "vd", "expected %%d with integer type");
 
-    char buf[64];
-    size_t radix = 1;
-    size_t size = 1;
+    char buf[256];
+    u32 size = 1;
     char *it = &buf[0];
-    string alphabet = Number_Alphabet[context->base_upcase];
 
-    for (auto n = Abs(v); n >= context->base; radix++, size++)
-        n /= context->base;
     if (context->sign_mode & Sign_Negative and v < 0)
         *it++ = '-';
     else if (context->sign_mode & Sign_Positive and v >= 0)
@@ -425,10 +426,42 @@ void format(Context *context, Device *dev, Fmt_Int auto v)
         *it++ = case_hash[1];
     }
 
-    it += radix;
-    for (int r = 0; r < radix; r++) {
-        it[-r - 1] = alphabet[size_t(v % context->base)];
-        v /= context->base;
+    it = write_itoa(it, Number_Alphabet[context->base_upcase], context->base, v);
+    dev->print_argument(context, string{buf, it});
+}
+
+void format(Context *context, Device *dev, Fmt_Float auto v)
+{
+    expect_token(context, dev, *context->verb, "vf", "expected %%f with float type");
+
+    char buf[256];
+    char *it = &buf[0];
+    u64 whole = (u64)v;
+    i64 prec = context->prec;
+    
+    if (prec < 0) {
+        prec = 0;
+        f64 frac = v - whole;
+        while (frac > 0.0 and prec < Max_Default_Prec) {
+            frac *= 10.0;
+            frac -= (u64)frac;
+            prec++;
+        }
+    }
+
+    if (context->sign_mode & Sign_Negative and v < 0)
+        *it++ = '-';
+    else if (context->sign_mode & Sign_Positive and v >= 0)
+        *it++ = '+';
+    else if (context->sign_mode & Sign_Positive_With_Space and v >= 0)
+        *it++ = ' ';
+
+    it = write_itoa(it, Number_Alphabet[0], 10, whole);
+    if (prec != 0) {
+        // todo! check buffer overflow
+        *it++ = '.';
+        u64 frac = (v - whole) * pow(prec, 10);
+        it = write_itoa(it, Number_Alphabet[0], 10, frac);
     }
 
     dev->print_argument(context, string{buf, it});
@@ -699,17 +732,25 @@ void format_spec(Context *context, Device *dev, auto v, auto... args)
         context->state = Spec_Pad;
         Parse_Next();
 
+    case '.':
+        expect_verbs("f");
+        context->spec++;
+        Parse_Int(context->prec);
+
     case '#':
+        expect_verbs("d");
         context->spec++;
         context->hash = true;
         Parse_Next();
 
     case '-':
+        expect_verbs("df");
         context->spec++;
         context->sign_mode |= (Sign_Negative);
         Parse_Next();
 
     case '+':
+        expect_verbs("df");
         context->spec++;
         if (context->sign_mode & Sign_Positive_With_Space)
             dev->errorf("'+': discordant '_' sign specifier");
@@ -717,6 +758,7 @@ void format_spec(Context *context, Device *dev, auto v, auto... args)
         Parse_Next();
 
     case '_':
+        expect_verbs("df");
         context->spec++;
         if (context->sign_mode & Sign_Positive)
             dev->errorf("'_': discordant '+' sign specifier");
@@ -724,7 +766,7 @@ void format_spec(Context *context, Device *dev, auto v, auto... args)
         Parse_Next();
 
     case 'b':
-        expect_verbs("dfr");
+        expect_verbs("dr");
         context->spec++;
         switch (*context->verb) {
         case 'd':
@@ -757,7 +799,7 @@ void format_spec(Context *context, Device *dev, auto v, auto... args)
     }
 
     case '!':
-        expect_verbs("dfs");
+        expect_verbs("ds");
         context->spec++;
         switch (*context->verb) {
         case 's':

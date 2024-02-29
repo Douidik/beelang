@@ -3,6 +3,20 @@
 namespace bee::fmt
 {
 
+char *write_itoa(char *it, string alphabet, i32 base, u64 x)
+{
+    char *end = it + 1;
+
+    for (auto n = Abs(x) / base; n >= base; end++)
+        n /= base;
+    for (char *w = end; w != it - 1; w--) {
+	*w = alphabet[size_t(x % base)];
+	x /= base;
+    }
+
+    return end;
+}
+
 Write_Status new_write_status(char *buf, size_t size)
 {
     return Write_Status{buf, size, 0};
@@ -21,7 +35,6 @@ string format_char_fn(Context *context, Device *dev, string input, View<char> ou
     return string{output.data, output.len};
 }
 
-
 size_t string_escaped_len(Context *context, Device *dev, string s)
 {
     size_t len = s.len;
@@ -37,8 +50,8 @@ string format_escape(Context *context, Device *dev, string input, View<char> out
     char *it = &output[0];
     auto escape = [&](char esc) {
         memset(it, '\\', context->escapes);
-	it[context->escapes] = esc;
-	it = &it[context->escapes + 1];
+        it[context->escapes] = esc;
+        it = &it[context->escapes + 1];
     };
 
     for (size_t i = 0; i < input.len; i++) {
@@ -129,8 +142,8 @@ string parse_sequence(Context *context, Device *dev)
         context->hash = true;
         context->base = 16;
         context->base_upcase = false;
-	break;
-	
+        break;
+
     case 'x':
     case 'X':
     case 'b':
@@ -148,7 +161,7 @@ string parse_sequence(Context *context, Device *dev)
             context->base = 2;
             break;
         }
-	break;
+        break;
     }
 
     return sequence;

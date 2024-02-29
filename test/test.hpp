@@ -13,7 +13,7 @@ static struct
 {
     string name;
     struct timespec start;
-} Current_Test = {"No test", 0};
+} Current_Case = {"null", 0};
 
 #define Expect(X) Assert(X)
 #define Expect_Eq(X, Y, ...) Expect(X == Y)
@@ -21,14 +21,14 @@ static struct
 
 static void when_test_begin()
 {
-    fmt::print("case! %(s:< 16) :: ", Current_Test.name);
+    fmt::print("case! %(s:< 16) :: ", Current_Case.name);
     fflush(stdout);
-    timespec_get(&Current_Test.start, TIME_UTC);
+    timespec_get(&Current_Case.start, TIME_UTC);
 }
 
 static void when_test_succeed()
 {
-    struct timespec start = Current_Test.start;
+    struct timespec start = Current_Case.start;
     struct timespec end = {};
     timespec_get(&end, TIME_UTC);
 
@@ -50,7 +50,7 @@ static void when_test_succeed()
 }
 
 #define Test(Name)            \
-    Current_Test.name = Name; \
+    Current_Case.name = Name; \
     when_test_begin();        \
     defer(when_test_succeed())
 
